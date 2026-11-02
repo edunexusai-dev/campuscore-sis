@@ -1,0 +1,17 @@
+node_modules
+server/node_modules
+client/node_modules
+connector/node_modules
+identity-sync/node_modules
+.env
+.env.*
+!.env.example
+!.env.production.example
+server/tests
+connector/test
+identity-sync/test
+client/dist
+docs/postman
+*.log
+.git
+.DS_Store
