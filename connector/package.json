@@ -1,0 +1,15 @@
+{
+  "name": "@campuscore/edunexus-connector",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Reference SIS connector for EdunexusAI: consumes the CampusCore SIS integration API through a replaceable adapter.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "demo": "node --env-file-if-exists=.env demo/server.js",
+    "sync": "node --env-file-if-exists=.env scripts/sync.js",
+    "verify": "node --env-file-if-exists=.env scripts/verify.js",
+    "e2e": "node --env-file-if-exists=.env scripts/e2e-feddrick.js",
+    "test": "node --test"
+  }
+}

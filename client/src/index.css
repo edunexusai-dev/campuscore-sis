@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Source Serif 4", ui-serif, Georgia, serif;
+
+  /* Ink: primary brand navy */
+  --color-ink-50: #f2f5fa;
+  --color-ink-100: #e3e9f3;
+  --color-ink-200: #c5d1e5;
+  --color-ink-300: #98abcd;
+  --color-ink-400: #6681b0;
+  --color-ink-500: #456196;
+  --color-ink-600: #344c7c;
+  --color-ink-700: #2a3d65;
+  --color-ink-800: #1d2d4f;
+  --color-ink-900: #14284b;
+  --color-ink-950: #0c1830;
+
+  /* Brass: restrained academic accent */
+  --color-brass-50: #fdf8ec;
+  --color-brass-100: #faefcf;
+  --color-brass-200: #f3dc9b;
+  --color-brass-300: #f3c969;
+  --color-brass-400: #e2ad3f;
+  --color-brass-500: #c58f22;
+  --color-brass-600: #a3711a;
+  --color-brass-700: #7d5418;
+
+  --color-canvas: #f6f5f1;
+}
+
+@layer base {
+  html { -webkit-font-smoothing: antialiased; }
+  body { @apply bg-canvas text-slate-800; font-feature-settings: "cv11", "ss01"; }
+  h1, h2, h3 { @apply text-slate-900; }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-ink-500; }
+  ::selection { @apply bg-brass-200; }
+}
+
+@layer components {
+  .card { @apply bg-white rounded-xl border border-slate-200/80 shadow-[0_1px_2px_rgba(16,24,40,0.04)]; }
+  .input { @apply block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 shadow-xs focus:border-ink-500 focus:ring-2 focus:ring-ink-500/20 focus:outline-none disabled:bg-slate-50 disabled:text-slate-500; }
+  .label { @apply block text-[13px] font-medium text-slate-700 mb-1; }
+  .th { @apply px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80 border-b border-slate-200 whitespace-nowrap; }
+  .td { @apply px-4 py-3 text-sm text-slate-700 border-b border-slate-100 align-middle; }
+  .link { @apply text-ink-700 hover:text-ink-900 underline-offset-2 hover:underline font-medium; }
+  .mono { @apply font-mono text-[12.5px]; }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; }
+  .card { box-shadow: none; border-color: #ddd; }
+}
