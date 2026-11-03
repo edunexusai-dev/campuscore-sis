@@ -5,6 +5,11 @@
   "description": "Provisions university identities in the identity provider (Keycloak) from the CampusCore person registry: one account per person, carrying their institutional numbers and roles.",
   "type": "module",
   "main": "src/sync.js",
+  "exports": {
+    ".": "./src/sync.js",
+    "./clients": "./src/clients.js",
+    "./plan": "./src/plan.js"
+  },
   "bin": { "campuscore-identity-sync": "bin/sync.js" },
   "scripts": {
     "sync": "node --env-file-if-exists=.env bin/sync.js",

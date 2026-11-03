@@ -137,6 +137,16 @@ enum IdentityLinkStatus {
   REVOKED
 }
 
+/// Where a person's university account (identity provider) stands. See model IdentityProvisioning.
+enum IdentityProvisioningStatus {
+  PENDING // waiting for the worker (new change, or a retry after a temporary failure)
+  PROCESSING // claimed by a worker (claim expires, so a crashed worker's claim is picked up again)
+  PROVISIONED // the account exists and matches the person's records
+  FAILED // gave up: retries exhausted or a configuration problem; an administrator retries
+  NEEDS_REVIEW // no safe automatic decision (ambiguous or conflicting accounts); an administrator decides
+  SKIPPED // nothing to provision (no current relationship, excluded, or merged into another person)
+}
+
 enum IdempotencyState {
   IN_PROGRESS
   COMPLETED
@@ -208,6 +218,7 @@ model Institution {
   identityLinks      ExternalIdentityLink[]
   idempotencyRecords IdempotencyRecord[]
   people             Person[]
+  idpAccounts        IdentityProvisioning[]
   users              User[]
   academicYears      AcademicYear[]
   terms              Term[]
@@ -257,8 +268,49 @@ model Person {
   student     Student?
   faculty     Faculty?
   user        User?
+  idpAccount  IdentityProvisioning?
 
   @@unique([institutionId, personNumber])
+}
+
+/// The person's university account in the identity provider (Keycloak), kept in step with their records.
+/// A transactional outbox with state: database triggers (migration 20261103100000) upsert this row in the same
+/// transaction as any change to the person's student/faculty records (insert, delete, number, email, name,
+/// status, person) or to the person itself (merge, identity exclusion), so no write path can forget it. One
+/// row per person: changes coalesce, and the worker always reconciles the person's CURRENT state, which makes
+/// reprocessing harmless. `requestedVersion` grows with every change, so a change that arrives while a worker
+/// is processing the person is processed again afterwards. Staff-only logins (ADMIN, REGISTRAR) have no person
+/// and are never provisioned here.
+model IdentityProvisioning {
+  personId         String                     @id
+  institutionId    String
+  status           IdentityProvisioningStatus @default(PENDING)
+  requestedVersion Int                        @default(1)
+  attempts         Int                        @default(0)
+  nextAttemptAt    DateTime                   @default(now())
+  lockedUntil      DateTime?
+  /// The account's id in the identity provider (the OIDC `sub` of the person's university sign-in).
+  keycloakUserId   String?
+  /// An administrator confirmed this existing account is the person's (used once by the worker, then cleared).
+  adoptAccountId   String?
+  /// CREATE, ADOPT, UPDATE, UNCHANGED, SKIP or CONFLICT: what the last completed run decided.
+  lastAction       String?
+  /// Why the person needs review or was skipped (a code such as EMAIL_IN_USE_WITHOUT_NUMBER).
+  reason           String?
+  /// The last run's outcome without personal data: changed field names, roles, how an account was matched.
+  lastResult       Json?
+  lastErrorCode    String?
+  lastError        String?
+  provisionedAt    DateTime?
+  setupEmailSentAt DateTime?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  person      Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
+  institution Institution @relation(fields: [institutionId], references: [id])
+
+  @@index([status, nextAttemptAt])
+  @@index([institutionId, status])
 }
 
 model User {

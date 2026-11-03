@@ -5,6 +5,7 @@ import { api } from '../../lib/api.js';
 import { useApi, useAction } from '../../lib/hooks.js';
 import { useAuth } from '../../lib/auth.jsx';
 import { fmtDateTime, meetingText } from '../../lib/format.js';
+import UniversityAccountCard from './UniversityAccount.jsx';
 import { PageHeader, Card, Spinner, Badge, Button, KeyValue, DataTable, Modal, Field, Input, Select, ApiErrorDetails, Empty, ErrorState } from '../../components/ui.jsx';
 
 export default function FacultyDetail() {
@@ -22,9 +23,12 @@ export default function FacultyDetail() {
       <PageHeader back={{ to: '/admin/faculty', label: 'Faculty' }} eyebrow={f.department.name} title={`${f.firstName} ${f.lastName}`} subtitle={<span className="flex items-center gap-2"><Badge status={f.status} />{f.title}</span>}
         actions={can('faculty.manage') && <Button icon={Pencil} onClick={() => setEdit({ title: f.title, departmentId: f.department.id, phone: f.phone ?? '', officeLocation: f.officeLocation ?? '', officeHours: f.officeHours ?? '', status: f.status })}>Edit</Button>} />
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card title="Profile">
-          <KeyValue cols={1} items={[['Employee #', <span className="mono">{f.employeeNumber}</span>], ['Email', f.email], ['Phone', f.phone], ['Office', f.officeLocation], ['Office hours', f.officeHours], ['Portal login', f.hasLogin ? `Yes · last sign-in ${fmtDateTime(f.lastLoginAt)}` : 'None']]} />
-        </Card>
+        <div className="space-y-6">
+          <Card title="Profile">
+            <KeyValue cols={1} items={[['Employee #', <span className="mono">{f.employeeNumber}</span>], ['Email', f.email], ['Phone', f.phone], ['Office', f.officeLocation], ['Office hours', f.officeHours], ['Portal login', f.hasLogin ? `Yes · last sign-in ${fmtDateTime(f.lastLoginAt)}` : 'None']]} />
+          </Card>
+          <UniversityAccountCard personId={f.personId} />
+        </div>
         <Card title="Teaching assignments" className="lg:col-span-2" padded={false}>
           <DataTable rows={f.sections} empty={<Empty title="No sections assigned" />} columns={[
             { key: 'term', header: 'Term', render: (r) => r.termCode },

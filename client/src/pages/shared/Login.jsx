@@ -50,7 +50,7 @@ export default function Login() {
   const [sso, setSso] = useState(null);
   useEffect(() => { fetch('/api/app/auth/oidc/config').then((r) => r.json()).then((j) => setSso(j.data?.enabled ? j.data : null)).catch(() => {}); }, []);
   const ssoError = new URLSearchParams(window.location.search).get('sso_error');
-  const DEMO = demoAccounts(branding);
+  const DEMO = SHOW_DEMO ? demoAccounts(branding) : [];
 
   const submit = async (e) => {
     e.preventDefault();
@@ -81,7 +81,7 @@ export default function Login() {
       <div className="flex items-center justify-center px-5 py-12">
         <div className="w-full max-w-sm">
           <h1 className="font-serif text-3xl font-semibold">Sign in</h1>
-          <p className="mt-1.5 text-sm text-slate-500">Feddrick University · fictional demo institution</p>
+          {SHOW_DEMO && <p className="mt-1.5 text-sm text-slate-500">Feddrick University · fictional demo institution</p>}
           {ssoError && <div className="mt-6"><Alert tone="error">{SSO_ERRORS[ssoError] ?? SSO_ERRORS.SIGN_IN_FAILED}</Alert></div>}
           {sso && (
             <div className="mt-8">

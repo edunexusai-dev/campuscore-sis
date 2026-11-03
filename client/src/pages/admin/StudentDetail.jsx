@@ -9,6 +9,7 @@ import { PageHeader, Card, Spinner, Badge, Button, Tabs, KeyValue, DataTable, Mo
 import { DegreeAudit } from '../student/Progress.jsx';
 import TranscriptView from '../../components/TranscriptView.jsx';
 import WeeklySchedule from '../../components/WeeklySchedule.jsx';
+import UniversityAccountCard from './UniversityAccount.jsx';
 
 export default function StudentDetail() {
   const { id } = useParams();
@@ -81,6 +82,7 @@ function Overview({ s, onEdit, onLogin, canCreateLogin }) {
           ]} />
           {!s.login && canCreateLogin && <Button size="sm" variant="secondary" icon={KeyRound} className="mt-4" onClick={onLogin}>Create portal login</Button>}
         </Card>
+        <UniversityAccountCard personId={s.personId} />
       </div>
     </div>
   );

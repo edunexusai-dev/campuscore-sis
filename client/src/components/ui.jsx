@@ -103,6 +103,7 @@ const STATUS_TONE = {
   ACTIVE: 'green', REGISTERED: 'green', PUBLISHED: 'green', COMPLETED: 'green', APPROVED: 'green', OPEN: 'green', GOOD: 'green', PRESENT: 'green', ADMITTED: 'green', MATRICULATED: 'ink', IN_PROGRESS: 'blue', REGISTRATION_OPEN: 'blue',
   DEANS_LIST: 'violet', SUBMITTED: 'blue', PROCESSING: 'blue', UNDER_REVIEW: 'blue', WAITLISTED: 'amber', DRAFT: 'slate', PLANNED: 'slate', PENDING: 'amber', LATE: 'amber', RETURNED: 'amber', PROBATION: 'amber', LEAVE_OF_ABSENCE: 'amber', CLOSED: 'slate', EXCUSED: 'slate', APPLICANT: 'slate',
   DROPPED: 'slate', WITHDRAWN: 'slate', CANCELLED: 'red', REJECTED: 'red', ABSENT: 'red', SUSPENDED: 'red', SUSPENSION: 'red', DISABLED: 'red', REVOKED: 'red', EXPIRED: 'slate', SUPERSEDED: 'slate', GRADUATED: 'ink', MISSING: 'red',
+  PROVISIONED: 'green', NEEDS_REVIEW: 'amber', FAILED: 'red', SKIPPED: 'slate',
 };
 export function Badge({ children, tone, status, className }) {
   const t = tone ?? STATUS_TONE[status] ?? 'slate';

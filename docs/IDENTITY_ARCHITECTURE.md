@@ -89,6 +89,11 @@ Refusals are `NO_CURRENT_RELATIONSHIP` and `EMAIL_IN_USE`. Staff accounts are st
 
 ## 4. Identity sync (CampusCore → Keycloak)
 
+> **Automatic since migration `20261103100000_identity_provisioning`:** the CampusCore server provisions accounts by
+> itself whenever a student or faculty record changes, with the same rules as below (it runs the identity sync's own
+> code). See [IDENTITY_PROVISIONING.md](IDENTITY_PROVISIONING.md). The command line remains for dry runs, full
+> reconciliations and audits.
+
 `identity-sync/` is a separate Node worker that uses only public interfaces:
 - CampusCore's API with an integration client holding **only `people:read`**;
 - Keycloak's Admin API as a **service account** of a dedicated client holding realm-management `manage-users`, `view-users` and `query-users`.
@@ -157,7 +162,7 @@ Both are off by default; existing behaviour is unchanged.
 ## 7. The administrator's workflow (target)
 
 1. Register the person in CampusCore: admission, then matriculation, or a faculty record. For someone who already exists, use "enrol this faculty member" / "appoint this student".
-2. The identity sync creates or updates their Keycloak account (automatic).
+2. CampusCore creates or updates their Keycloak account automatically within seconds (status on the student/faculty page; see IDENTITY_PROVISIONING.md).
 3. The person signs in once. EdunexusAI and CampusCore create their own accounts; nothing is typed by hand anywhere.
 
 ## 8. Pending (needs an administrator)

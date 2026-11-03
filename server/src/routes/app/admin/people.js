@@ -12,6 +12,7 @@ import { notifyStudent } from '../../../services/notificationService.js';
 import { nextStudentNumber } from '../../../services/studentService.js';
 import { createPerson, syncLogin, getPerson, personDto, mergeRecordIntoPerson, setIdentityExclusion } from '../../../services/personService.js';
 import { effectiveRoles, roleInclude } from '../../../lib/roles.js';
+import { getProvisioning, listProvisioning, requestRetry, confirmAdoption } from '../../../services/identityProvisioningService.js';
 import { sectionDto } from '../../v1/dto.js';
 
 const router = Router();
@@ -236,7 +237,7 @@ router.post('/holds/:id/release', requirePermission('students.manage'), async (r
 });
 
 // ── Faculty ──
-const facultyRow = (f) => ({ id: f.id, employeeNumber: f.employeeNumber, firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, title: f.title, status: f.status, department: { id: f.department.id, code: f.department.code, name: f.department.name }, officeLocation: f.officeLocation, officeHours: f.officeHours, hasLogin: !!f.user, lastLoginAt: f.user?.lastLoginAt ?? null });
+const facultyRow = (f) => ({ id: f.id, personId: f.personId, employeeNumber: f.employeeNumber, firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, title: f.title, status: f.status, department: { id: f.department.id, code: f.department.code, name: f.department.name }, officeLocation: f.officeLocation, officeHours: f.officeHours, hasLogin: !!f.user, lastLoginAt: f.user?.lastLoginAt ?? null });
 
 router.get('/faculty', requirePermission('academics.manage'), async (req, res) => {
   const q = parse(paginationQuery.extend({ search: z.string().max(100).optional(), departmentId: id.optional(), sort: sortQuery(['lastName', 'firstName', 'employeeNumber'], 'lastName') }), req.query);
@@ -315,6 +316,30 @@ router.post('/persons/:id/records', requirePermission('identity.manage'), async 
   const body = parse(z.object({ recordType: z.enum(['STUDENT', 'FACULTY']), recordId: id, reason: z.string().trim().min(10, 'Say how you verified it is the same person (at least 10 characters).').max(500) }).strict(), req.body);
   const result = await mergeRecordIntoPerson(req.actor, { ...body, intoPersonId: req.params.id }, audit);
   res.json({ data: result });
+});
+
+// ── University accounts (identity provider) ──
+// Provisioning is automatic (services/identityProvisioningService.js); these show where a person's account stands
+// and let an administrator act when the worker could not decide or gave up.
+router.get('/identity-provisioning', requirePermission('identity.manage'), async (req, res) => {
+  const q = parse(paginationQuery.extend({ status: z.enum(['PENDING', 'PROCESSING', 'PROVISIONED', 'FAILED', 'NEEDS_REVIEW', 'SKIPPED']).optional() }), req.query);
+  const { rows, total } = await listProvisioning(inst(req), q);
+  res.json(paged(rows, total, q));
+});
+
+router.get('/persons/:id/identity-provisioning', requirePermission('identity.manage'), async (req, res) => {
+  res.json({ data: await getProvisioning(inst(req), req.params.id) });
+});
+
+router.post('/persons/:id/identity-provisioning/retry', requirePermission('identity.manage'), async (req, res) => {
+  parse(z.object({}).strict(), req.body ?? {});
+  res.json({ data: await requestRetry(req.actor, req.params.id) });
+});
+
+// Adopting an existing account decides who can sign in as this person, so it is an administrator's decision only.
+router.post('/persons/:id/identity-provisioning/adopt', requirePermission('users.manage'), async (req, res) => {
+  const body = parse(z.object({ accountId: z.string().trim().uuid('Paste the account\'s ID from Keycloak (Users → the account → ID).'), reason: z.string().trim().min(10, 'Say how you verified the account is this person\'s (at least 10 characters).').max(500) }).strict(), req.body);
+  res.json({ data: await confirmAdoption(req.actor, req.params.id, body) });
 });
 
 // ── Users & roles ──

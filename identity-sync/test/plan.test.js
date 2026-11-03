@@ -81,6 +81,14 @@ describe('resolveAccount: never on email alone', () => {
     assert.equal(resolveAccount(student(), { ...none, adoptId: 'kc-x', adoptAccount: { id: 'kc-x', attributes: { person_number: ['P0000001'] } } }).reason, 'ADOPT_ACCOUNT_BELONGS_TO_OTHER_PERSON');
   });
 
+  it('after a merge, the merged person\'s account is this person\'s own, but still adopted only on number + address', () => {
+    const merged = { id: 'kc-old', email: 'rahul.multirole@students.feddrick.edu', attributes: { person_number: ['P0000777'], student_number: ['S2600187'] } };
+    assert.equal(resolveAccount(rahul, { ...none, byNumbers: [merged] }).reason, 'NUMBER_HELD_BY_OTHER_PERSON');
+    const r = resolveAccount(rahul, { ...none, byNumbers: [merged], formerPersonNumbers: ['P0000777'] });
+    assert.deepEqual([r.action, r.via, r.account.id], ['ADOPT', 'INSTITUTIONAL_NUMBER', 'kc-old']);
+    assert.equal(resolveAccount(rahul, { ...none, byNumbers: [{ ...merged, email: 'someone@else.edu' }], formerPersonNumbers: ['P0000777'] }).reason, 'EVIDENCE_MISMATCH');
+  });
+
   it('creates an account only for someone with a current relationship', () => {
     assert.equal(resolveAccount(student(), none).action, 'CREATE');
     assert.deepEqual(resolveAccount(student({ status: 'INACTIVE', relationships: [{ type: 'STUDENT', number: 'S2600188', status: 'WITHDRAWN', current: false }] }), none), { action: 'SKIP', reason: 'NO_CURRENT_RELATIONSHIP' });

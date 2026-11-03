@@ -7,7 +7,8 @@ COPY server/package.json ./server/
 COPY client/package.json ./client/
 COPY connector/package.json ./connector/
 COPY identity-sync/package.json ./identity-sync/
-RUN npm ci
+# npm hoists workspace dependencies to the root; the per-workspace folders may not exist, but later stages copy them.
+RUN npm ci && mkdir -p server/node_modules client/node_modules
 
 FROM node:22-alpine AS client-build
 WORKDIR /app
@@ -15,6 +16,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/client/node_modules ./client/node_modules
 COPY package.json ./
 COPY client ./client
+# Production images never show the demo sign-in shortcuts (fixed here, not a build argument, so it cannot be overridden).
+ENV VITE_SHOW_DEMO_ACCOUNTS=false
 RUN npm run build --workspace client
 
 FROM node:22-alpine AS prisma
@@ -34,7 +37,7 @@ COPY connector/package.json ./connector/
 COPY identity-sync/package.json ./identity-sync/
 # client is not needed at runtime — it was built in the previous stage
 COPY client/package.json ./client/
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && mkdir -p server/node_modules
 
 FROM node:22-alpine
 RUN apk add --no-cache tini
@@ -43,12 +46,17 @@ ENV NODE_ENV=production
 
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/server/node_modules ./server/node_modules
-COPY --from=prisma /app/server/node_modules/.prisma ./server/node_modules/.prisma
+# `prisma generate` writes the client next to the hoisted @prisma/client, i.e. the root node_modules.
+COPY --from=prisma /app/node_modules/.prisma ./node_modules/.prisma
 COPY package.json ./
 COPY server/package.json ./server/
 COPY server/prisma ./server/prisma
 COPY server/src ./server/src
 COPY server/scripts ./server/scripts
+# The identity sync's decision rules and Keycloak client, used by the server's provisioning worker
+# (node_modules/@campuscore/identity-sync is a workspace link to this directory).
+COPY identity-sync/package.json ./identity-sync/
+COPY identity-sync/src ./identity-sync/src
 COPY --from=client-build /app/client/dist ./client/dist
 
 USER node

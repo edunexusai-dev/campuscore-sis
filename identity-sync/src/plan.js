@@ -58,12 +58,15 @@ export function numbersOf(person) {
  *   byNumbers: accounts carrying any of the person's student/employee numbers
  *   byEmail: accounts whose email is one of the person's addresses
  *   adoptId: an administrator-confirmed account id for this person (or null)
+ *   formerPersonNumbers: numbers of people an administrator merged into this person; their accounts are this
+ *     person's own (same human being), not another person's, but are still adopted only on the usual evidence
  * Returns { action: 'UPDATE' | 'ADOPT' | 'CREATE' | 'SKIP' | 'CONFLICT', account?, reason? }.
  */
-export function resolveAccount(person, { byPersonNumber, byNumbers, byEmail, adoptId = null, adoptAccount = null }) {
+export function resolveAccount(person, { byPersonNumber, byNumbers, byEmail, adoptId = null, adoptAccount = null, formerPersonNumbers = [] }) {
   if (byPersonNumber.length > 1) return { action: 'CONFLICT', reason: 'DUPLICATE_PERSON_NUMBER' };
   if (byPersonNumber.length === 1) return { action: 'UPDATE', account: byPersonNumber[0] };
-  const ownedByOther = (a) => (a.attributes?.person_number ?? []).some((p) => p !== person.personNumber);
+  const ownNumbers = new Set([person.personNumber, ...formerPersonNumbers]);
+  const ownedByOther = (a) => (a.attributes?.person_number ?? []).some((p) => !ownNumbers.has(p));
   if (adoptId) {
     if (!adoptAccount) return { action: 'CONFLICT', reason: 'ADOPT_ACCOUNT_NOT_FOUND' };
     if (ownedByOther(adoptAccount)) return { action: 'CONFLICT', reason: 'ADOPT_ACCOUNT_BELONGS_TO_OTHER_PERSON' };
