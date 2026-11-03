@@ -6,8 +6,11 @@
 //   import (target database):  node scripts/import-subset.js import --slug feddrick --file subset.json            (dry run)
 //                              node scripts/import-subset.js import --slug feddrick --file subset.json --apply    (writes)
 //
+// Also copied: each named person's ACTIVE links to external portal accounts (ExternalIdentityLink, e.g. EdunexusAI),
+// so the portal keeps recognising them; the links name the portal's own user ids, which must be unchanged there.
+//
 // Never copied: logins (User rows) and passwords, sessions, sections, registrations, grades, holds, applications,
-// documents, identity links, integration clients, policies, the institution's address/contact profile, and personal
+// documents, university sign-in links (UserIdentityLink), integration clients, policies, the institution's address/contact profile, and personal
 // details of people (date of birth, home address, phone, personal email, emergency contact, financial references).
 // Logins are created at the person's first university sign-in (OIDC_JIT_ACCOUNTS).
 //
@@ -36,7 +39,7 @@ async function exportSubset() {
   const numbers = a.people.split(',').map((s) => s.trim()).filter(Boolean);
   const people = [];
   for (const personNumber of numbers) {
-    const p = await prisma.person.findFirst({ where: { ...w, personNumber }, include: { student: { include: { program: true, admitTerm: true } }, faculty: { include: { department: true } } } });
+    const p = await prisma.person.findFirst({ where: { ...w, personNumber }, include: { student: { include: { program: true, admitTerm: true, identityLinks: { where: { status: 'ACTIVE' } } } }, faculty: { include: { department: true, identityLinks: { where: { status: 'ACTIVE' } } } } } });
     if (!p) fail(`No person ${personNumber} in ${a.slug}.`);
     if (p.mergedIntoId) fail(`${personNumber} was merged into another person; export the surviving person instead.`);
     if (!p.student && !p.faculty) fail(`${personNumber} has no student or faculty record.`);
@@ -46,6 +49,7 @@ async function exportSubset() {
       personNumber,
       identityExcluded: p.identityExcluded,
       student: s && { studentNumber: s.studentNumber, firstName: s.firstName, lastName: s.lastName, preferredName: s.preferredName, email: s.email, status: s.status, classLevel: s.classLevel, academicStanding: s.academicStanding, expectedGraduation: s.expectedGraduation, programCode: s.program?.code ?? null, admitTermCode: s.admitTerm?.code ?? null },
+      links: [...(s?.identityLinks ?? []), ...(f?.identityLinks ?? [])].map((l) => ({ externalSystem: l.externalSystem, externalUserId: l.externalUserId, externalEmail: l.externalEmail, externalLabel: l.externalLabel, recordType: l.recordType, method: l.method, evidence: l.evidence })),
       faculty: f && { employeeNumber: f.employeeNumber, firstName: f.firstName, lastName: f.lastName, email: f.email, title: f.title, status: f.status, officeLocation: f.officeLocation, officeHours: f.officeHours, departmentCode: f.department.code },
     });
   }
@@ -82,6 +86,21 @@ const same = (row, want, keys) => keys.filter((k) => {
   const have = row[k] instanceof Date ? (want[k]?.length === 10 ? day(row[k]) : iso(row[k])) : row[k] != null && typeof row[k] === 'object' ? row[k].toString() : row[k];
   return String(have ?? '') !== String(want[k] ?? '');
 });
+
+/** A person's external links: an ACTIVE link for the same external account and record type must be this one. */
+async function checkLinks(tx, w, p, existing, { tally, conflict }) {
+  for (const l of p.links ?? []) {
+    const key = `${p.personNumber} ${l.externalSystem}:${l.externalUserId} ${l.recordType}`;
+    if (!['STUDENT', 'FACULTY'].includes(l.recordType) || !(l.recordType === 'STUDENT' ? p.student : p.faculty)) { conflict('identityLink', key, 'names a record the person does not have'); continue; }
+    if (p.identityExcluded) { conflict('identityLink', key, 'the person is excluded from identity provisioning'); continue; }
+    const active = await tx.externalIdentityLink.findFirst({ where: { ...w, externalSystem: l.externalSystem, externalUserId: l.externalUserId, recordType: l.recordType, status: 'ACTIVE' }, include: { student: true, faculty: true } });
+    if (!active) { tally('create', 'identityLink', key); continue; }
+    const number = l.recordType === 'STUDENT' ? active.student?.studentNumber : active.faculty?.employeeNumber;
+    const want = l.recordType === 'STUDENT' ? p.student.studentNumber : p.faculty.employeeNumber;
+    if (existing && number === want) tally('same', 'identityLink', key);
+    else conflict('identityLink', key, `that external account is already linked to ${l.recordType.toLowerCase()} ${number ?? '?'}`);
+  }
+}
 
 async function planImport(tx, inst, s) {
   const w = { institutionId: inst.id };
@@ -140,6 +159,7 @@ async function planImport(tx, inst, s) {
   const [deptCodes, programCodes, termCodes] = [codes(s.departments), codes(s.programs), codes(s.terms)];
   for (const p of s.people) {
     const existing = await tx.person.findFirst({ where: { ...w, personNumber: p.personNumber }, include: { student: true, faculty: true } });
+    await checkLinks(tx, w, p, existing, { tally, conflict });
     if (existing) {
       const ok = (!p.student || existing.student?.studentNumber === p.student.studentNumber) && (!p.faculty || existing.faculty?.employeeNumber === p.faculty.employeeNumber);
       if (ok) tally('same', 'person', p.personNumber);
@@ -203,7 +223,12 @@ async function applyImport(tx, inst, s) {
       const { departmentCode, ...fa } = p.faculty;
       await tx.faculty.create({ data: { ...w, ...fa, personId: person.id, departmentId: ids.department[departmentCode] ?? (await tx.department.findFirst({ where: { ...w, code: departmentCode } })).id } });
     }
-    await tx.auditEvent.create({ data: { ...actor, action: 'person.imported', entityType: 'Person', entityId: person.id, summary: `Imported ${p.personNumber} (${[p.student && `student ${p.student.studentNumber}`, p.faculty && `faculty ${p.faculty.employeeNumber}`].filter(Boolean).join(' + ')}) from ${s.source.slug} export ${s.source.exportedAt}; numbers kept, no login created` } });
+    const records = { STUDENT: await tx.student.findFirst({ where: { personId: person.id } }), FACULTY: await tx.faculty.findFirst({ where: { personId: person.id } }) };
+    for (const l of p.links ?? []) {
+      const record = records[l.recordType];
+      await tx.externalIdentityLink.create({ data: { ...w, externalSystem: l.externalSystem, externalUserId: l.externalUserId, externalEmail: l.externalEmail, externalLabel: l.externalLabel, recordType: l.recordType, studentId: l.recordType === 'STUDENT' ? record.id : null, facultyId: l.recordType === 'FACULTY' ? record.id : null, method: l.method, evidence: { ...(l.evidence ?? {}), importedFrom: `${s.source.slug} export ${s.source.exportedAt}` }, createdByType: 'SYSTEM', createdByLabel: 'System (subset import)' } });
+    }
+    await tx.auditEvent.create({ data: { ...actor, action: 'person.imported', entityType: 'Person', entityId: person.id, summary: `Imported ${p.personNumber} (${[p.student && `student ${p.student.studentNumber}`, p.faculty && `faculty ${p.faculty.employeeNumber}`].filter(Boolean).join(' + ')}) from ${s.source.slug} export ${s.source.exportedAt}; numbers kept, no login created${p.links?.length ? `, ${p.links.length} external link(s) restored` : ''}` } });
     created.push(p.personNumber);
   }
   await tx.auditEvent.create({ data: { ...actor, action: 'catalog.imported', entityType: 'Institution', entityId: inst.id, summary: `Imported academic structure and catalog from ${s.source.slug} export ${s.source.exportedAt}: ${s.colleges.length} colleges, ${s.departments.length} departments, ${s.programs.length} programs, ${s.academicYears.length} academic years, ${s.terms.length} terms, ${s.courses.length} courses (existing identical rows kept)` } });
@@ -221,6 +246,7 @@ async function importSubset() {
   console.log(`  institution: ${Object.keys(plan.institution).length ? `set ${Object.entries(plan.institution).map(([k, v]) => `${k}=${v}`).join(', ')}` : 'no change'}`);
   for (const entity of [...new Set([...Object.keys(plan.create), ...Object.keys(plan.same)])]) console.log(`  ${entity.padEnd(19)} create ${String(plan.create[entity]?.length ?? 0).padStart(3)} · already present ${plan.same[entity]?.length ?? 0}`);
   for (const p of plan.create.person ?? []) console.log(`    + person ${p}`);
+  for (const l of plan.create.identityLink ?? []) console.log(`    + link ${l}`);
   for (const x of plan.warnings) console.log(`  warning: ${x}`);
   for (const x of plan.conflicts) console.log(`  CONFLICT ${x}`);
   if (plan.conflicts.length) { console.log(`${plan.conflicts.length} conflict(s): nothing ${a.apply ? 'was ' : 'would be '}written.`); process.exitCode = 2; return; }
