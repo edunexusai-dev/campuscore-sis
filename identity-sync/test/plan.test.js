@@ -57,8 +57,19 @@ describe('current = the EdunexusAI policy, from the record status', () => {
 
 describe('resolveAccount: never on email alone', () => {
   it('the account carrying the person number is theirs; two such accounts is a conflict', () => {
-    assert.equal(resolveAccount(rahul, { ...none, byPersonNumber: [{ id: 'a' }] }).action, 'UPDATE');
+    assert.equal(resolveAccount(rahul, { ...none, byPersonNumber: [{ id: 'a', email: 'rahul.multirole@feddrick.edu', attributes: { employee_number: ['F01024'] } }] }).action, 'UPDATE');
     assert.equal(resolveAccount(rahul, { ...none, byPersonNumber: [{ id: 'a' }, { id: 'b' }] }).reason, 'DUPLICATE_PERSON_NUMBER');
+  });
+
+  it('a person number alone is not proof: another person\'s numbers or address on that account is a conflict', () => {
+    const imported = { id: 'kc-whitfield', email: 'm.whitfield@feddrick.edu', attributes: { person_number: ['P0000300'], employee_number: ['F01002'] } };
+    assert.deepEqual(resolveAccount(student(), { ...none, byPersonNumber: [imported] }), { action: 'CONFLICT', reason: 'PERSON_NUMBER_EVIDENCE_MISMATCH' });
+    const noNumbers = { id: 'kc-x', email: 'someone@else.edu', attributes: { person_number: ['P0000300'] } };
+    assert.equal(resolveAccount(student(), { ...none, byPersonNumber: [noNumbers] }).reason, 'PERSON_NUMBER_EVIDENCE_MISMATCH');
+    // corroborated by the person's own numbers, or (no numbers) their address; or it is the account already provisioned
+    assert.equal(resolveAccount(student(), { ...none, byPersonNumber: [{ ...imported, attributes: { person_number: ['P0000300'], student_number: ['S2600188'] } }] }).action, 'UPDATE');
+    assert.equal(resolveAccount(student(), { ...none, byPersonNumber: [{ ...noNumbers, email: 'Keshav.Jha@student.feddrick.edu' }] }).action, 'UPDATE');
+    assert.equal(resolveAccount(student(), { ...none, byPersonNumber: [imported], knownAccountId: 'kc-whitfield' }).action, 'UPDATE');
   });
 
   it('adopts an account that carries the person\'s number and one of their addresses (Rahul, set up by hand)', () => {

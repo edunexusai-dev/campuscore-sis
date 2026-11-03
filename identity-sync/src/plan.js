@@ -47,6 +47,14 @@ export function desiredAccount(person) {
   };
 }
 
+/** An account's own institutional numbers (and, without any, its email) are consistent with this person. */
+function corroborates(person, account) {
+  const theirs = new Set(numbersOf(person).map((n) => `${n.attribute}:${n.value}`));
+  const held = ['student_number', 'employee_number'].flatMap((a) => (account.attributes?.[a] ?? []).map((v) => `${a}:${v}`));
+  if (held.length) return held.every((n) => theirs.has(n));
+  return person.emails.map(norm).includes(norm(account.email));
+}
+
 /** The institutional numbers that identify this person (for adopting an existing account). */
 export function numbersOf(person) {
   return person.relationships.map((r) => ({ attribute: r.type === 'STUDENT' ? 'student_number' : 'employee_number', value: r.number }));
@@ -62,9 +70,16 @@ export function numbersOf(person) {
  *     person's own (same human being), not another person's, but are still adopted only on the usual evidence
  * Returns { action: 'UPDATE' | 'ADOPT' | 'CREATE' | 'SKIP' | 'CONFLICT', account?, reason? }.
  */
-export function resolveAccount(person, { byPersonNumber, byNumbers, byEmail, adoptId = null, adoptAccount = null, formerPersonNumbers = [] }) {
+export function resolveAccount(person, { byPersonNumber, byNumbers, byEmail, adoptId = null, adoptAccount = null, formerPersonNumbers = [], knownAccountId = null }) {
   if (byPersonNumber.length > 1) return { action: 'CONFLICT', reason: 'DUPLICATE_PERSON_NUMBER' };
-  if (byPersonNumber.length === 1) return { action: 'UPDATE', account: byPersonNumber[0] };
+  if (byPersonNumber.length === 1) {
+    // The person number alone is not proof: accounts copied from another environment (a realm import) can carry a
+    // number that this registry has since given to someone else. Unless this is the account already provisioned
+    // for the person, its student/employee numbers must all be the person's, or (none) its email one of theirs.
+    const account = byPersonNumber[0];
+    if (account.id === knownAccountId || corroborates(person, account)) return { action: 'UPDATE', account };
+    return { action: 'CONFLICT', reason: 'PERSON_NUMBER_EVIDENCE_MISMATCH' };
+  }
   const ownNumbers = new Set([person.personNumber, ...formerPersonNumbers]);
   const ownedByOther = (a) => (a.attributes?.person_number ?? []).some((p) => !ownNumbers.has(p));
   if (adoptId) {

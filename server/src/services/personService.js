@@ -26,6 +26,13 @@ export async function nextPersonNumber(institutionId, tx = prisma) {
   return `P${String(seq).padStart(7, '0')}`;
 }
 
+/** The next employee number: one above the highest in use (never a count, which collides after imports or deletions). */
+export async function nextEmployeeNumber(institutionId, tx = prisma) {
+  const rows = await tx.faculty.findMany({ where: { institutionId, employeeNumber: { startsWith: 'F' } }, select: { employeeNumber: true } });
+  const max = Math.max(1000, ...rows.map((r) => Number(r.employeeNumber.slice(1))).filter(Number.isFinite));
+  return `F${String(max + 1).padStart(5, '0')}`;
+}
+
 /** A new person, inside the caller's transaction. Every new student or faculty record starts here (or joins an existing person). */
 export async function createPerson(tx, institutionId) {
   return tx.person.create({ data: { institutionId, personNumber: await nextPersonNumber(institutionId, tx) } });

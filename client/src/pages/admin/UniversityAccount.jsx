@@ -13,6 +13,7 @@ const REASONS = {
   AMBIGUOUS_ACCOUNTS: 'Several accounts carry this person\'s institutional numbers.',
   NUMBER_HELD_BY_OTHER_PERSON: 'An account carrying this person\'s number belongs to another person number.',
   DUPLICATE_PERSON_NUMBER: 'Several accounts carry this person number.',
+  PERSON_NUMBER_EVIDENCE_MISMATCH: 'An account carries this person number but another person\'s student/employee number or email (for example copied from another environment). It is not taken over: correct or disable it in Keycloak, then retry.',
   ADOPT_ACCOUNT_NOT_FOUND: 'The confirmed account was not found in Keycloak.',
   ADOPT_ACCOUNT_BELONGS_TO_OTHER_PERSON: 'The confirmed account belongs to another person number.',
   MERGED_PERSON_HAS_ACCOUNT: 'This person was merged into another, but an enabled account still carries this person number. Disable it in Keycloak (the surviving person has their own), then retry.',

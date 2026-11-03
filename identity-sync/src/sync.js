@@ -4,7 +4,7 @@
 // names, never email addresses or names.
 import { desiredAccount, diffAccount, numbersOf, resolveAccount, usernameFor } from './plan.js';
 
-export async function syncPerson(person, { keycloak, apply = false, adopt = {}, sendSetupEmail = false }) {
+export async function syncPerson(person, { keycloak, apply = false, adopt = {}, sendSetupEmail = false, knownAccountId = null }) {
   const base = { personNumber: person.personNumber };
   if (person.mergedInto) return { ...base, action: 'SKIP', reason: 'MERGED_PERSON' };
   const byPersonNumber = await keycloak.byAttribute('person_number', person.personNumber);
@@ -12,7 +12,7 @@ export async function syncPerson(person, { keycloak, apply = false, adopt = {}, 
   const byEmail = byPersonNumber.length || byNumbers.length ? [] : (await Promise.all(person.emails.map((e) => keycloak.byEmail(e)))).flat();
   const adoptId = adopt[person.personNumber] ?? null;
   const adoptAccount = adoptId ? await keycloak.getUser(adoptId).catch(() => null) : null;
-  const resolved = resolveAccount(person, { byPersonNumber, byNumbers, byEmail, adoptId, adoptAccount, formerPersonNumbers: person.formerPersonNumbers ?? [] });
+  const resolved = resolveAccount(person, { byPersonNumber, byNumbers, byEmail, adoptId, adoptAccount, formerPersonNumbers: person.formerPersonNumbers ?? [], knownAccountId });
   if (resolved.action === 'CONFLICT' || resolved.action === 'SKIP') return { ...base, action: resolved.action, reason: resolved.reason };
 
   const desired = desiredAccount(person);

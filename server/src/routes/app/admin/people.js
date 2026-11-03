@@ -10,7 +10,7 @@ import { findStudents, getStudent, findFaculty } from '../../../services/querySe
 import { getAcademicRecord, getDegreeAudit, getTranscript } from '../../../services/academicService.js';
 import { notifyStudent } from '../../../services/notificationService.js';
 import { nextStudentNumber } from '../../../services/studentService.js';
-import { createPerson, syncLogin, getPerson, personDto, mergeRecordIntoPerson, setIdentityExclusion } from '../../../services/personService.js';
+import { createPerson, nextEmployeeNumber, syncLogin, getPerson, personDto, mergeRecordIntoPerson, setIdentityExclusion } from '../../../services/personService.js';
 import { effectiveRoles, roleInclude } from '../../../lib/roles.js';
 import { getProvisioning, listProvisioning, requestRetry, confirmAdoption } from '../../../services/identityProvisioningService.js';
 import { sectionDto } from '../../v1/dto.js';
@@ -274,10 +274,9 @@ router.post('/faculty', requirePermission('faculty.manage'), async (req, res) =>
   const createLogin = wantsLogin && !existingPerson;
   const password = createLogin ? tempPassword() : null;
   const f = await prisma.$transaction(async (tx) => {
-    const count = await tx.faculty.count({ where: { institutionId: inst(req) } });
     const personId = existingPerson?.id ?? (await createPerson(tx, inst(req))).id;
     const user = createLogin ? await tx.user.create({ data: { institutionId: inst(req), personId, email: data.email, passwordHash: await hashPassword(password), firstName: data.firstName, lastName: data.lastName, role: 'FACULTY' } }) : null;
-    const created = await tx.faculty.create({ data: { ...data, institutionId: inst(req), personId, userId: user?.id ?? existingPerson?.userId ?? null, employeeNumber: `F${String(1001 + count).padStart(5, '0')}` } });
+    const created = await tx.faculty.create({ data: { ...data, institutionId: inst(req), personId, userId: user?.id ?? existingPerson?.userId ?? null, employeeNumber: await nextEmployeeNumber(inst(req), tx) } });
     await audit(req.actor, { action: 'faculty.created', entityType: 'Faculty', entityId: created.id, summary: `Created faculty member ${data.firstName} ${data.lastName}${existingPerson ? ` for existing student ${personOfStudentId} (same person)` : ''}` }, tx);
     return created;
   });

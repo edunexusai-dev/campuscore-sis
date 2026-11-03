@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { KeycloakAdminClient } from '@campuscore/identity-sync/clients';
 import { login, prisma } from './helpers.js';
 import { runOnce } from '../src/services/identityProvisioningService.js';
+import { nextPersonNumber } from '../src/services/personService.js';
 import { startKeycloakStub, REALM, CLIENT_ID, CLIENT_SECRET } from './keycloakStub.js';
 
 let kc;
@@ -182,6 +183,28 @@ describe('5–7. existing accounts are adopted only on institutional identifiers
     expect(adopted).toMatchObject({ status: 'PROVISIONED', action: 'ADOPT' });
     expect((await rowOf(s.personId)).adoptAccountId).toBeNull();
     expect(kc.find('person_number', await personNumberOf(s.personId)).map((a) => a.id)).toEqual([existing]);
+  });
+
+  it('an account imported from another environment that already holds this person number is never taken over', async () => {
+    const s = await newStudent();
+    const pn = await personNumberOf(s.personId);
+    const foreign = kc.addUser({ username: `imported.${tag}`, email: `imported.${tag}@feddrick.edu`, firstName: 'Marcus', attributes: { person_number: [pn], employee_number: ['F99999'] } });
+    await keycloak.addRealmRoles(foreign, ['faculty']);
+    const before = JSON.stringify(await keycloak.getUser(foreign));
+    expect((await run([s.personId]))[0]).toMatchObject({ status: 'NEEDS_REVIEW', reason: 'PERSON_NUMBER_EVIDENCE_MISMATCH' });
+    expect(JSON.stringify(await keycloak.getUser(foreign))).toBe(before);
+    expect(kc.rolesOf(foreign)).toEqual(['faculty']);
+    expect(kc.find('person_number', pn).map((a) => a.id)).toEqual([foreign]);
+  });
+
+  it('the account this person was provisioned with stays theirs even after its numbers were edited by hand', async () => {
+    const s = await newStudent();
+    await run([s.personId]);
+    const id = (await rowOf(s.personId)).keycloakUserId;
+    kc.update(id, { attributes: { person_number: [await personNumberOf(s.personId)], student_number: ['S0000000'] } });
+    await admin.post(`/api/app/admin/persons/${s.personId}/identity-provisioning/retry`);
+    expect((await run([s.personId]))[0]).toMatchObject({ status: 'PROVISIONED', action: 'UPDATE' });
+    expect(kc.find('person_number', await personNumberOf(s.personId))[0].attributes.student_number).toEqual([s.studentNumber]);
   });
 
   it('7. duplicate or conflicting institutional identifiers go to review, never to automatic adoption', async () => {
@@ -361,6 +384,18 @@ describe('11. staff accounts and excluded people are not provisioned through thi
     expect((await admin.put(`/api/app/admin/persons/${s.personId}/identity-exclusion`, { excluded: true, reason: 'Visiting researcher, no university account' })).status).toBe(200);
     expect((await run([s.personId]))[0]).toMatchObject({ status: 'SKIPPED', reason: 'IDENTITY_EXCLUDED' });
     expect(kc.find('person_number', await personNumberOf(s.personId))).toHaveLength(0);
+  });
+});
+
+describe('faculty employee numbers', () => {
+  it('continue above the highest number in use, so imported numbers never collide with new ones', async () => {
+    const highest = await prisma.faculty.findMany({ where: { institutionId: inst.id }, select: { employeeNumber: true } });
+    const max = Math.max(...highest.map((f) => Number(f.employeeNumber.slice(1))));
+    const p = await prisma.person.create({ data: { institutionId: inst.id, personNumber: await nextPersonNumber(inst.id) } });
+    const imported = `F${String(max + 50).padStart(5, '0')}`;
+    await prisma.faculty.create({ data: { institutionId: inst.id, personId: p.id, employeeNumber: imported, firstName: 'Imported', lastName: `Faculty${tag}`, email: `imported.f.${tag}@feddrick.edu`, title: 'Lecturer', departmentId: department.id } });
+    const f = await newFaculty();
+    expect(f.employeeNumber).toBe(`F${String(max + 51).padStart(5, '0')}`);
   });
 });
 

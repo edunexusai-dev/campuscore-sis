@@ -40,12 +40,14 @@ async function claim({ limit, personIds }) {
     UPDATE "IdentityProvisioning" p
     SET "status" = 'PROCESSING', "lockedUntil" = (now() AT TIME ZONE 'utc') + make_interval(secs => ${CLAIM_SECONDS}), "updatedAt" = now() AT TIME ZONE 'utc'
     FROM (
-      SELECT "personId" FROM "IdentityProvisioning"
-      WHERE (("status" = 'PENDING' AND "nextAttemptAt" <= now() AT TIME ZONE 'utc') OR ("status" = 'PROCESSING' AND "lockedUntil" < now() AT TIME ZONE 'utc'))
-      ${personIds ? Prisma.sql`AND "personId" IN (${Prisma.join(personIds)})` : Prisma.empty}
-      ORDER BY "nextAttemptAt"
+      SELECT ip."personId" FROM "IdentityProvisioning" ip JOIN "Person" pe ON pe."id" = ip."personId"
+      WHERE ((ip."status" = 'PENDING' AND ip."nextAttemptAt" <= now() AT TIME ZONE 'utc') OR (ip."status" = 'PROCESSING' AND ip."lockedUntil" < now() AT TIME ZONE 'utc'))
+      ${personIds ? Prisma.sql`AND ip."personId" IN (${Prisma.join(personIds)})` : Prisma.empty}
+      -- A merge queues both people at once: the surviving person first, so it can adopt the merged person's account
+      -- before the merged person is checked for a leftover account.
+      ORDER BY ip."nextAttemptAt", (pe."mergedIntoId" IS NOT NULL)
       LIMIT ${limit}
-      FOR UPDATE SKIP LOCKED
+      FOR UPDATE OF ip SKIP LOCKED
     ) due
     WHERE p."personId" = due."personId"
     RETURNING p."personId", p."institutionId", p."requestedVersion", p."attempts", p."adoptAccountId", p."keycloakUserId", p."lastAction", p."reason"`;
@@ -68,7 +70,7 @@ async function reconcile(row, { keycloak, sendSetupEmail, maxAttempts }) {
     }
     const former = await prisma.person.findMany({ where: { mergedIntoId: person.id }, select: { personNumber: true } });
     const adopt = row.adoptAccountId ? { [person.personNumber]: row.adoptAccountId } : {};
-    const result = await syncPerson({ ...dto, formerPersonNumbers: former.map((p) => p.personNumber) }, { keycloak, apply: true, adopt, sendSetupEmail });
+    const result = await syncPerson({ ...dto, formerPersonNumbers: former.map((p) => p.personNumber) }, { keycloak, apply: true, adopt, sendSetupEmail, knownAccountId: row.keycloakUserId });
     const lastResult = Object.fromEntries(Object.entries({ via: result.via, changed: result.changed, addRoles: result.addRoles, removeRoles: result.removeRoles, roles: result.roles }).filter(([, v]) => v !== undefined));
     const base = { personNumber: person.personNumber, lastAction: result.action, lastResult, clearAdopt: Boolean(row.adoptAccountId) };
     if (result.action === 'CONFLICT') return { ...base, status: 'NEEDS_REVIEW', reason: result.reason };
