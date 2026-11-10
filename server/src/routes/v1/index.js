@@ -20,6 +20,7 @@ import * as dto from './dto.js';
 import { findPeople, getPerson, personDto } from '../../services/personService.js';
 import { idempotent } from '../../middleware/idempotency.js';
 import { getPolicies } from '../../services/policyService.js';
+import { currentStudentAccount } from '../../services/financeService.js';
 
 const router = Router();
 router.use(apiRequestLog);
@@ -194,6 +195,14 @@ router.get('/students/:id/academic-record', requireScope('grades:read'), async (
   res.json({ data: { studentId: s.id, studentNumber: s.studentNumber, program: s.program?.name ?? null, classLevel: s.classLevel, academicStanding: s.academicStanding, cumulativeGpa: record.cumulativeGpa, creditsAttempted: record.creditsAttempted, creditsEarned: record.creditsEarned, creditsInProgress: record.creditsInProgress, terms: record.terms.map((t) => ({ term: t.term.code, termGpa: t.termGpa, cumulativeGpa: t.cumulativeGpa, creditsEarned: t.creditsEarned })) } });
 });
 
+// The student's account for a term (default: the current term, else the most recent). data is null when the student
+// has no account: an empty state, not an error.
+router.get('/students/:id/account', requireScope('finance:read'), async (req, res) => {
+  const q = parse(z.object({ termId: id.optional() }), req.query);
+  await getStudent(inst(req), req.params.id);
+  res.json({ data: await currentStudentAccount(inst(req), req.params.id, q.termId) });
+});
+
 router.get('/students/:id/attendance', requireScope('attendance:read'), async (req, res) => {
   const q = parse(z.object({ termId: id.optional() }), req.query);
   await getStudent(inst(req), req.params.id);
@@ -309,6 +318,20 @@ router.get('/announcements', requireScope('announcements:read'), async (req, res
   const now = new Date();
   const rows = await prisma.announcement.findMany({ where: { institutionId: inst(req), sectionId: null, publishedAt: { lte: now }, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }], ...(q.audience ? { audience: { in: ['ALL', q.audience] } } : {}) }, orderBy: [{ pinned: 'desc' }, { publishedAt: 'desc' }], take: 50 });
   res.json({ data: rows.map(dto.announcementDto) });
+});
+
+// Class announcements for the sections a student is registered in (posted by their instructors), newest first.
+router.get('/students/:id/announcements', requireScope('announcements:read'), async (req, res) => {
+  await getStudent(inst(req), req.params.id);
+  const now = new Date();
+  const sectionIds = (await prisma.registration.findMany({ where: { studentId: req.params.id, status: 'REGISTERED' }, select: { sectionId: true } })).map((r) => r.sectionId);
+  const rows = await prisma.announcement.findMany({
+    where: { institutionId: inst(req), sectionId: { in: sectionIds }, publishedAt: { lte: now }, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+    include: { section: { include: { course: true, term: true } } },
+    orderBy: [{ pinned: 'desc' }, { publishedAt: 'desc' }],
+    take: 50,
+  });
+  res.json({ data: rows.map((a) => ({ ...dto.announcementDto(a), section: { id: a.section.id, label: `${a.section.course.code}-${a.section.sectionNumber}`, courseCode: a.section.course.code, courseTitle: a.section.course.title, term: a.section.term.code } })) });
 });
 
 registerIdentityRoutes(router);
