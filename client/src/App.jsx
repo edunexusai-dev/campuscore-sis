@@ -16,6 +16,7 @@ const pages = {
   Registrations: p(() => import('./pages/admin/Registrations.jsx')),
   AdminGrades: p(() => import('./pages/admin/Grades.jsx')),
   AdminDocuments: p(() => import('./pages/admin/Documents.jsx')),
+  AdminFinance: p(() => import('./pages/admin/Finance.jsx')),
   Sections: p(() => import('./pages/admin/Sections.jsx')),
   SectionDetail: p(() => import('./pages/admin/SectionDetail.jsx')),
   Courses: p(() => import('./pages/admin/Courses.jsx')),
@@ -86,6 +87,7 @@ export default function App() {
           <Route path="registrations" element={<Perm perm="registrations.manage">{S(P.Registrations)}</Perm>} />
           <Route path="grades" element={<Perm perm="grades.approve">{S(P.AdminGrades)}</Perm>} />
           <Route path="documents" element={<Perm perm="documents.manage">{S(P.AdminDocuments)}</Perm>} />
+          <Route path="finance" element={<Perm perm="finance.manage">{S(P.AdminFinance)}</Perm>} />
           <Route path="sections" element={<Perm perm="academics.manage">{S(P.Sections)}</Perm>} />
           <Route path="sections/:id" element={<Perm perm="academics.manage">{S(P.SectionDetail)}</Perm>} />
           <Route path="courses" element={<Perm perm="academics.manage">{S(P.Courses)}</Perm>} />

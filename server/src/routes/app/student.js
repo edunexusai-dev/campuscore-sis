@@ -13,6 +13,7 @@ import { registerStudent, dropRegistration, evaluateRegistration } from '../../s
 import { getStudentAttendance } from '../../services/attendanceService.js';
 import { findSections, studentSchedule, currentTerm } from '../../services/queryService.js';
 import { sectionDto } from '../v1/dto.js';
+import { listStudentAccounts } from '../../services/financeService.js';
 
 const router = Router();
 router.use(requireRole('STUDENT'), (req, _res, next) => {
@@ -59,6 +60,8 @@ router.get('/dashboard', async (req, res) => {
 });
 
 router.get('/profile', async (req, res) => res.json({ data: profileDto(await myStudent(req)) }));
+// The signed-in student's own accounts, newest term first (read-only; administrators record every entry).
+router.get('/accounts', async (req, res) => res.json({ data: await listStudentAccounts(req.user.institutionId, req.studentId) }));
 
 // Students may update contact details only. Identity, status and academic fields are not accepted.
 const contactSchema = z.object({

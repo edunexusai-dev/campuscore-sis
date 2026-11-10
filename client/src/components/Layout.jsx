@@ -3,7 +3,7 @@ import { api } from '../lib/api.js';
 import { useAction } from '../lib/hooks.js';
 import { NavLink, Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  KeySquare, LayoutDashboard, Users, GraduationCap, BookOpen, CalendarRange, ClipboardCheck, FileText, Megaphone, ShieldCheck, Settings2, KeyRound,
+  KeySquare, LayoutDashboard, Users, GraduationCap, BookOpen, CalendarRange, ClipboardCheck, FileText, Wallet, Megaphone, ShieldCheck, Settings2, KeyRound,
   ScrollText, BarChart3, Activity, Building2, UserPlus, ListChecks, Bell, LogOut, Menu, X, CalendarDays, Contact, School, Library, ClipboardList, UserCog, Network, Link2,
 } from 'lucide-react';
 import { useAuth, personasOf, rememberPersona, homeFor } from '../lib/auth.jsx';
@@ -19,6 +19,7 @@ const NAV = {
       { to: '/admin/registrations', label: 'Registrations', icon: ListChecks, perm: 'registrations.manage' },
       { to: '/admin/grades', label: 'Grades', icon: ClipboardCheck, perm: 'grades.approve' },
       { to: '/admin/documents', label: 'Document requests', icon: FileText, perm: 'documents.manage' },
+      { to: '/admin/finance', label: 'Student accounts', icon: Wallet, perm: 'finance.manage' },
       { to: '/admin/identity', label: 'Identity links', icon: Link2, perm: 'identity.manage' },
     ] },
     { section: 'Academics', items: [

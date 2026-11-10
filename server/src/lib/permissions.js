@@ -19,6 +19,7 @@ export const PERMISSIONS = {
   'identity.manage': { label: 'Link and unlink external accounts (e.g. EdunexusAI users) to SIS records', roles: ['ADMIN', 'REGISTRAR'] },
   'integrations.manage': { label: 'Manage integration clients and API credentials', roles: ['ADMIN'] },
   'audit.view': { label: 'View the audit log and system health', roles: ['ADMIN'] },
+  'finance.manage': { label: 'Manage student accounts: fees, charges, payments, credits and statements', roles: ['ADMIN'] },
   'teaching.manage': { label: 'Manage rosters, attendance and grades for assigned sections', roles: ['FACULTY'] },
   'self.service': { label: 'Student self-service (own records only)', roles: ['STUDENT'] },
 };
