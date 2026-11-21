@@ -15,6 +15,7 @@ export const OPERATIONS = {
   'registration.write': { label: 'Register and drop students', scope: 'registrations:write', policy: 'api.allowRegistrationWrites' },
   'attendance.write': { label: 'Record attendance', scope: 'attendance:write', policy: 'api.allowAttendanceWrites' },
   'grade.write': { label: 'Post draft grades', scope: 'grades:write', policy: 'api.allowGradeWrites' },
+  'announcement.write': { label: 'Publish class announcements', scope: 'announcements:write', policy: 'api.allowAnnouncementWrites' },
   'identity.link': { label: 'Link and unlink external accounts', scope: 'identity:write', policy: 'api.allowIdentityLinkWrites' },
 };
 export const OPERATION_NAMES = Object.keys(OPERATIONS);

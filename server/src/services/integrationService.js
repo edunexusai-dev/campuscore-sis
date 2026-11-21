@@ -37,6 +37,7 @@ export const SCOPES = {
   'attendance:read': 'Attendance records',
   'attendance:write': 'Record attendance on behalf of an assigned instructor (policy-controlled)',
   'announcements:read': "Institution-wide announcements, and class announcements for a student's registered sections",
+  'announcements:write': 'Publish class announcements to a section on behalf of an assigned instructor (policy-controlled)',
   'finance:read': "A student's account: balance, assessed fees, transactions, invoices and payment deadlines",
 };
 export const SCOPE_NAMES = Object.keys(SCOPES);

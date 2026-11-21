@@ -154,7 +154,7 @@ Reuse the connector rather than writing a second client:
 **Recommended client scopes for EdunexusAI:**
 
 - **Read:** `institution:read terms:read calendar:read programs:read courses:read sections:read students:read faculty:read registrations:read schedules:read grades:read attendance:read announcements:read identity:read audit:read`
-- **Write (add only what is needed):** `students:create students:update students:deactivate identity:write integration:configure`, and optionally `registrations:write attendance:write`
+- **Write (add only what is needed):** `students:create students:update students:deactivate identity:write integration:configure`, and optionally `registrations:write attendance:write announcements:write` (class announcements from the faculty composer; also needs the policy **api.allowAnnouncementWrites**, off by default)
 
 The token lifetime can be set up to 60 minutes. No one needs to generate tokens by hand: the connector requests and refreshes them automatically.
 

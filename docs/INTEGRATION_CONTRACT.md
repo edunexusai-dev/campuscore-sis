@@ -132,7 +132,8 @@ The response is always `200 {"revoked": true}` for an authenticated client, whet
 | `grades:write` | Post **draft** grades on behalf of an assigned instructor |
 | `attendance:read` | Attendance records |
 | `attendance:write` | Record attendance on behalf of an assigned instructor |
-| `announcements:read` | Current institution-wide announcements |
+| `announcements:read` | Current institution-wide announcements; class announcements for a student's registered sections and for a faculty member's sections |
+| `announcements:write` | Publish class announcements to a section on behalf of an assigned instructor |
 
 A request without a required scope gets:
 
@@ -206,6 +207,7 @@ Every write is attributed to the integration in the audit log (`actorType = INTE
 | `POST /students/{id}/deactivate` | `students:deactivate` | `api.allowStudentDeactivation` | Sets WITHDRAWN, never deletes anything. Refused with `active_term_registrations`, or with `future_registrations` unless `dropFutureRegistrations: true`. Idempotent. |
 | `POST /identity/links`, `POST /identity/links/{id}/revoke` | `identity:write` | `api.allowIdentityLinkWrites` | Requires `confirm: true`; one active link per account and per record; email evidence mismatch needs `evidenceMismatchReason` |
 | `POST /sections/{id}/attendance` `{actingFacultyId, date, records[]}` | `attendance:write` | `api.allowAttendanceWrites` | `actingFacultyId` must teach the section; the date must fall within the term, not in the future, and within the attendance edit window; every student must be on the roster. |
+| `POST /sections/{id}/announcements` `{actingFacultyId, title, body, pinned?}` | `announcements:write` | `api.allowAnnouncementWrites` (**off by default**) | `Idempotency-Key` required; `actingFacultyId` must be active (`403 faculty_inactive`) and teach the section (`403 not_section_instructor`); a cancelled section is refused (`422 section_cancelled`). Published immediately to the section's registered students with the instructor as author; audited. |
 | `PUT /sections/{id}/grades` `{actingFacultyId, grades[]}` | `grades:write` | `api.allowGradeWrites` (**off by default**) | `actingFacultyId` must teach the section; letters must be on the grade scale; students must be actively registered; only DRAFT or RETURNED grades can change (`422 grade_locked` otherwise). Saved as DRAFT, or SUBMITTED if `api.gradeWritesAutoSubmit` is on. **Integrations can never approve or publish grades**, and published grades change only through a registrar-reviewed grade change request. |
 
 Rule-violation codes you may receive (all `422`): `invalid_program`, `program_inactive`, `invalid_term`, `student_inactive`, `student_graduated`, `active_term_registrations`, `future_registrations`, `identity_evidence_mismatch`, `idempotency_key_reused`, `student_not_eligible`, `registration_hold`, `section_cancelled`, `section_closed`, `term_completed`, `registration_window_closed`, `already_registered`, `already_waitlisted`, `duplicate_course`, `prerequisite_not_met`, `credit_limit_exceeded`, `time_conflict`, `section_full`, `registration_not_active`, `grade_on_record`, `withdraw_deadline_passed`, `policy_disabled`, `no_changes`, `grade_locked`, `student_not_on_roster`, `grading_not_open`, `date_outside_term`, `future_date`, `edit_window_closed`.
@@ -251,6 +253,8 @@ All endpoints require a bearer token unless noted otherwise.
 | `PUT /sections/{id}/grades` | `grades:write` | See §7 |
 | `GET /sections/{id}/attendance` | `attendance:read` | Optional `date` |
 | `POST /sections/{id}/attendance` | `attendance:write` | See §7 |
+| `POST /sections/{id}/announcements` | `announcements:write` | See §7 |
+| `GET /faculty/{id}/announcements` | `announcements:read` | Class announcements on the sections a faculty member teaches; optional `termId` |
 | `GET /students` | `students:read` | Paginated; `search`, `status`, `programId`, `classLevel`, exact `email` / `studentNumber`, `sort` |
 | `GET /students/{id}` | `students:read` | |
 | `PATCH /students/{id}` | field-level (see §7) | Contact, profile and approved academic fields |

@@ -21,6 +21,7 @@ import { findPeople, getPerson, personDto } from '../../services/personService.j
 import { idempotent } from '../../middleware/idempotency.js';
 import { getPolicies } from '../../services/policyService.js';
 import { currentStudentAccount } from '../../services/financeService.js';
+import { createSectionAnnouncement } from '../../services/announcementService.js';
 
 const router = Router();
 router.use(apiRequestLog);
@@ -331,8 +332,40 @@ router.get('/students/:id/announcements', requireScope('announcements:read'), as
     orderBy: [{ pinned: 'desc' }, { publishedAt: 'desc' }],
     take: 50,
   });
-  res.json({ data: rows.map((a) => ({ ...dto.announcementDto(a), section: { id: a.section.id, label: `${a.section.course.code}-${a.section.sectionNumber}`, courseCode: a.section.course.code, courseTitle: a.section.course.title, term: a.section.term.code } })) });
+  res.json({ data: rows.map(sectionAnnouncementDto) });
 });
+
+// Class announcements on the sections a faculty member teaches (read only), newest first. Optional termId narrows it.
+router.get('/faculty/:id/announcements', requireScope('announcements:read'), async (req, res) => {
+  const q = parse(z.object({ termId: id.optional() }), req.query);
+  const f = await prisma.faculty.findFirst({ where: { id: req.params.id, institutionId: inst(req) } });
+  if (!f) throw notFound('Faculty member');
+  const rows = await prisma.announcement.findMany({
+    where: { institutionId: inst(req), section: { instructors: { some: { facultyId: f.id } }, ...(q.termId ? { termId: q.termId } : {}) } },
+    include: { section: { include: { course: true, term: true } } },
+    orderBy: [{ pinned: 'desc' }, { publishedAt: 'desc' }],
+    take: 50,
+  });
+  res.json({ data: rows.map(sectionAnnouncementDto) });
+});
+
+// Class announcements (write): published to a section on behalf of an instructor assigned to it, who is the author.
+// Idempotency-Key is required so a retried publish never posts twice.
+router.post('/sections/:id/announcements', requireScope('announcements:write'), idempotent({ required: true }), async (req, res) => {
+  await assertOperation(req, 'announcement.write');
+  const body = parse(z.object({
+    actingFacultyId: id,
+    title: z.string().trim().min(3).max(150),
+    body: z.string().trim().min(3).max(5000),
+    pinned: z.boolean().default(false),
+  }).strict(), req.body);
+  const a = await createSectionAnnouncement(req.actor, { sectionId: req.params.id, facultyId: body.actingFacultyId, title: body.title, body: body.body, pinned: body.pinned });
+  res.status(201).json({ data: sectionAnnouncementDto(a) });
+});
+
+function sectionAnnouncementDto(a) {
+  return { ...dto.announcementDto(a), section: { id: a.section.id, label: `${a.section.course.code}-${a.section.sectionNumber}`, courseCode: a.section.course.code, courseTitle: a.section.course.title, term: a.section.term.code } };
+}
 
 registerIdentityRoutes(router);
 
